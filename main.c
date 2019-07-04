@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "nes_system.h"
+
+nes_emulator_t emu;
 
 int main() {
-    printf("Hello World\n");
+    load_game(&emu, "smb.nes");
     return 0;
 }
