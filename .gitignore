@@ -1,3 +1,5 @@
 .vscode/*
 *.o
 main
+maintest
+a.out

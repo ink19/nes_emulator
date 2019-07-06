@@ -308,7 +308,7 @@ static void cpu_shift_ror(nes_cpu_t *cpu, u_int8_t opcode) {
 }
 
 static u_int8_t addr_zpy(nes_cpu_t *cpu) {
-    return &(cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff];
+    return cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff];
 }
 
 static u_int8_t get_oper_ldx(nes_cpu_t *cpu, u_int8_t opcode) {
@@ -401,5 +401,36 @@ static void cpu_type00_brk(nes_cpu_t *cpu, u_int8_t opcode) {
 
 //处理器状态压入堆栈。
 static void cpu_type00_php(nes_cpu_t *cpu, u_int8_t opcode) {
-    
+    u_int8_t data = 0;
+    data |= cpu->flags.C;
+    data |= (cpu->flags.Z) << 1;
+    data |= (cpu->flags.I) << 2;
+    data |= (cpu->flags.D) << 3;
+    data |= (cpu->flags.B) << 4;
+    data |= (cpu->flags.V) << 6;
+    data |= (cpu->flags.N) << 7;
+    cpu->memory[cpu->mregister.SP + 0x0100] = data;
+    cpu->mregister.SP--;
 }
+
+//N = 0分支
+static void cpu_type00_bpl(nes_cpu_t *cpu, u_int8_t opcode) {
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//清进位标志C
+static void cpu_type00_clc(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.C = 0;
+}
+
+//000
+static void cpu_type00_000(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_000_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_brk, NULL, cpu_type00_php, NULL, 
+        cpu_type00_bpl, NULL, cpu_type00_clc, NULL
+    };
+    (*cpu_type00_000_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+

@@ -14,4 +14,4 @@ nes_cpu.o: nes_cpu.c nes_cpu.h
 nes_memory.o: nes_memory.c nes_memory.h
 
 clean:
-	rm -rf *.o main
+	rm -rf *.o main maintest a.out
