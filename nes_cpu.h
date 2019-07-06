@@ -7,6 +7,8 @@
 
 #include <sys/types.h>
 
+//6502 小端
+
 typedef struct {
     //7 6 5 4 3 2 1 0
     //N V E B D I Z C
