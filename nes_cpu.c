@@ -772,3 +772,20 @@ static void cpu_type00_111(nes_cpu_t *cpu, u_int8_t opcode) {
     };
     (*cpu_type00_111_funs[(opcode >> 2) & 0x07])(cpu, opcode);
 }
+
+static void cpu_type00(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t type = opcode >> 5;
+    void (*type_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_000, cpu_type00_001, cpu_type00_010,
+        cpu_type00_011, cpu_type00_100, cpu_type00_101,
+        cpu_type00_110, cpu_type00_111
+    };
+    (*(type_funs[type]))(cpu, opcode);
+}
+
+static void cpu_run_code(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*run_code_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00, cpu_type01, cpu_type10, NULL
+    };
+    (*(run_code_funs[opcode & 0x03]))(cpu, opcode);
+}
