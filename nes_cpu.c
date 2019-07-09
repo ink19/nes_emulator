@@ -422,8 +422,8 @@ static void cpu_type00_php(nes_cpu_t *cpu, u_int8_t opcode) {
 
 //N = 0分支
 static void cpu_type00_bpl(nes_cpu_t *cpu, u_int8_t opcode) {
-    if(cpu->flags.N) return; 
     int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(cpu->flags.N) return; 
     cpu->mregister.PC -= 2;
     cpu->mregister.PC += data;
 }
@@ -480,8 +480,8 @@ static void cpu_type00_plp(nes_cpu_t *cpu, u_int8_t opcode) {
 
 //N=1 分支
 static void cpu_type00_bmi(nes_cpu_t *cpu, u_int8_t opcode) {
-    if(!cpu->flags.N) return; 
     int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(!cpu->flags.N) return; 
     cpu->mregister.PC -= 2;
     cpu->mregister.PC += data;
 }
@@ -502,8 +502,8 @@ static void cpu_type00_001(nes_cpu_t *cpu, u_int8_t opcode) {
 
 //V=0的分支
 static void cpu_type00_bvc(nes_cpu_t *cpu, u_int8_t opcode) {
-    if(cpu->flags.V) return; 
     int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(cpu->flags.V) return; 
     cpu->mregister.PC -= 2;
     cpu->mregister.PC += data;
 }
@@ -563,8 +563,8 @@ static void cpu_type00_010(nes_cpu_t *cpu, u_int8_t opcode) {
 
 //V = 1 分支
 static void cpu_type00_bvs(nes_cpu_t *cpu, u_int8_t opcode) {
-    if(!(cpu->flags.V)) return; 
     int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(!(cpu->flags.V)) return; 
     cpu->mregister.PC -= 2;
     cpu->mregister.PC += data;
 }
@@ -588,13 +588,187 @@ static void cpu_type00_sei(nes_cpu_t *cpu, u_int8_t opcode) {
 //累加器出栈
 static void cpu_type00_pla(nes_cpu_t *cpu, u_int8_t opcode) {
     stack_pop(cpu, &(cpu->mregister.A));
+    setZN(cpu, cpu->mregister.A);
 }
 
 //011
 static void cpu_type00_011(nes_cpu_t *cpu, u_int8_t opcode) {
     void (*cpu_type00_011_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
-        cpu_type00_rti, NULL, cpu_type00_pha, cpu_type00_jmp, 
-        cpu_type00_bvc, NULL, cpu_type00_cli, NULL
+        cpu_type00_rts, NULL, cpu_type00_pla, cpu_type00_jmp, 
+        cpu_type00_bvs, NULL, cpu_type00_sei, NULL
     };
     (*cpu_type00_011_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//寄存器X-1
+static void cpu_type00_dex(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->mregister.X--;
+    setZN(cpu, cpu->mregister.X);
+}
+
+//C = 0分支
+static void cpu_type00_bcc(nes_cpu_t *cpu, u_int8_t opcode) {
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(cpu->flags.C) return; 
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//Y -> M 10000100
+static void cpu_type00_sty(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t *datap = get_operp(cpu, opcode);
+    *datap = cpu->mregister.Y;
+}
+
+//Y -> A
+static void cpu_type00_tya(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->mregister.A = cpu->mregister.Y;
+    setZN(cpu, cpu->mregister.A);
+}
+
+//100
+static void cpu_type00_100(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_100_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        NULL, cpu_type00_sty, cpu_type00_dex, cpu_type00_sty, 
+        cpu_type00_bcc, cpu_type00_sty, cpu_type00_tya, NULL
+    };
+    (*cpu_type00_100_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//C = 1分支
+static void cpu_type00_bcs(nes_cpu_t *cpu, u_int8_t opcode) {
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(!(cpu->flags.C)) return; 
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//V = 0
+static void cpu_type00_clv(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.V = 0;
+}
+
+//A -> Y
+static void cpu_type00_tay(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->mregister.Y = cpu->mregister.A;
+    setZN(cpu, cpu->mregister.Y);
+}
+
+static u_int8_t get_oper_ldy(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t (*get_oper_fun[])(nes_cpu_t *cpu) = {
+        addr_imm, addr_zp, NULL, addr_abs,
+        NULL, addr_zpx, NULL, addr_absx
+    };
+    return (*(get_oper_fun[(opcode >> 2) & 0x07]))(cpu);
+}
+
+//Y = M
+static void cpu_type00_ldy(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t data = get_oper_ldy(cpu, opcode);
+    cpu->mregister.Y = data;
+}
+
+//101
+static void cpu_type00_101(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_101_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_ldy, cpu_type00_ldy, cpu_type00_tay, cpu_type00_ldy, 
+        cpu_type00_bcs, cpu_type00_ldy, cpu_type00_clv, cpu_type00_ldy
+    };
+    (*cpu_type00_101_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//Y++
+static void cpu_type00_iny(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->mregister.Y++;
+    setZN(cpu, cpu->mregister.Y);
+}
+
+//Z=0分支
+static void cpu_type00_bne(nes_cpu_t *cpu, u_int8_t opcode) {
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(cpu->flags.Z) return; 
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//D=0
+static void cpu_type00_cld(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.D = 0;
+}
+
+static u_int8_t get_oper_cpy(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t (*get_oper_fun[])(nes_cpu_t *cpu) = {
+        addr_imm, addr_zp, NULL, addr_abs,
+        NULL, NULL, NULL, NULL
+    };
+    return (*(get_oper_fun[(opcode >> 2) & 0x07]))(cpu);
+}
+
+//Y与M进行比较
+static void cpu_type00_cpy(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int16_t result = cpu->mregister.Y;
+    result -= get_oper_cpy(cpu, opcode);
+    if(result > 0xff) {
+        cpu->flags.C = 1;
+    } else {
+        cpu->flags.C = 0;
+    }
+    setZN(cpu, result);
+}
+
+//110
+static void cpu_type00_110(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_110_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_cpy, cpu_type00_cpy, cpu_type00_iny, cpu_type00_cpy, 
+        cpu_type00_bne, NULL, cpu_type00_cld, NULL
+    };
+    (*cpu_type00_110_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//X++
+static void cpu_type00_inx(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->mregister.X++;
+    setZN(cpu, cpu->mregister.X);
+}
+
+//Z=1分支
+static void cpu_type00_beq(nes_cpu_t *cpu, u_int8_t opcode) {
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    if(!(cpu->flags.Z)) return; 
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//D = 1
+static void cpu_type00_sed(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.D = 1;
+}
+
+static u_int8_t get_oper_cpx(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t (*get_oper_fun[])(nes_cpu_t *cpu) = {
+        addr_imm, addr_zp, NULL, addr_abs,
+        NULL, NULL, NULL, NULL
+    };
+    return (*(get_oper_fun[(opcode >> 2) & 0x07]))(cpu);
+}
+
+//Y与M进行比较
+static void cpu_type00_cpx(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int16_t result = cpu->mregister.X;
+    result -= (u_int16_t)get_oper_cpx(cpu, opcode);
+    if(result > 0xff) {
+        cpu->flags.C = 1;
+    } else {
+        cpu->flags.C = 0;
+    }
+    setZN(cpu, result);
+}
+
+//111
+static void cpu_type00_111(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_111_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_cpx, cpu_type00_cpx, cpu_type00_inx, cpu_type00_cpx, 
+        cpu_type00_beq, NULL, cpu_type00_sed, NULL
+    };
+    (*cpu_type00_111_funs[(opcode >> 2) & 0x07])(cpu, opcode);
 }
