@@ -39,4 +39,7 @@ typedef struct {
     u_int8_t *memory;
 } nes_cpu_t;
 
+//nes_memory
+extern u_int8_t *get_memory(nes_cpu_t *cpu, u_int16_t addr);
+
 #endif

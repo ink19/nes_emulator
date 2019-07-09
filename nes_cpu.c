@@ -1,7 +1,17 @@
 #include "nes_cpu.h"
 
+static void stack_push(nes_cpu_t *cpu, u_int8_t data) {
+    *get_memory(cpu, cpu->mregister.SP + 0x0100) = data;
+    cpu->mregister.SP--;
+}
+
+static void stack_pop(nes_cpu_t *cpu, u_int8_t *data) {
+    cpu->mregister.SP++;
+    u_int8_t *data = get_memory(cpu, cpu->mregister.SP + 0x0100);
+}
+
 static u_int8_t read_opcode_byte(nes_cpu_t *cpu) {
-    return cpu->memory[cpu->mregister.PC++];
+    return *get_memory(cpu, cpu->mregister.PC++);
 }
 
 static u_int8_t addr_imm(nes_cpu_t *cpu) {
@@ -9,27 +19,27 @@ static u_int8_t addr_imm(nes_cpu_t *cpu) {
 }
 
 static u_int8_t addr_zp(nes_cpu_t *cpu) {
-    return cpu->memory[read_opcode_byte(cpu)];
+    return *get_memory(cpu, read_opcode_byte(cpu));
 }
 
 static u_int8_t addr_zpx(nes_cpu_t *cpu) {
-    return cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.X) % 0xff];
+    return *get_memory(cpu, (read_opcode_byte(cpu) + cpu->mregister.X) & 0xff);
 }
 
 static u_int8_t addr_indexindiret(nes_cpu_t *cpu) {
-    u_int8_t *memory = cpu->memory;
+    //u_int8_t *memory = cpu->memory;
     u_int8_t X = cpu->mregister.X;
     u_int8_t data = read_opcode_byte(cpu);
-    u_int16_t addr = ((u_int16_t)memory[(data + X) & 0xff]) + ((u_int16_t)memory[(data + X + 1) & 0xff]) << 8;
-    return memory[addr];
+    u_int16_t addr = ((u_int16_t)*get_memory(cpu, (data + X) & 0xff)) + ((u_int16_t)*get_memory(cpu, (data + X + 1) & 0xff)) << 8;
+    return *get_memory(cpu, addr);
 }
 
 static u_int8_t addr_indiretindex(nes_cpu_t *cpu) {
-    u_int8_t *memory = cpu->memory;
+    //u_int8_t *memory = cpu->memory;
     u_int8_t Y = cpu->mregister.Y;
     u_int8_t data = read_opcode_byte(cpu);
-    u_int16_t addr = (u_int16_t)(memory[data]) + (u_int16_t)(memory[(data + 1) & 0xff]) << 8 + Y;
-    return memory[addr];
+    u_int16_t addr = (u_int16_t)(*get_memory(cpu, data)) + (u_int16_t)(*get_memory(cpu, (data + 1) & 0xff)) << 8 + Y;
+    return *get_memory(cpu, addr);
 }
 
 static u_int8_t addr_absx(nes_cpu_t *cpu) {
@@ -39,7 +49,7 @@ static u_int8_t addr_absx(nes_cpu_t *cpu) {
     addrh = read_opcode_byte(cpu);
     addr = (addrh << 8) | addrl;
     addr += cpu->mregister.X;
-    return cpu->memory[addr];
+    return *get_memory(cpu, addr);
 }
 
 static u_int8_t addr_absy(nes_cpu_t *cpu) {
@@ -49,7 +59,7 @@ static u_int8_t addr_absy(nes_cpu_t *cpu) {
     addr = (addrh << 8) | addrl;
 
     addr += cpu->mregister.Y;
-    return cpu->memory[addr];
+    return *get_memory(cpu, addr);
 }
 
 static u_int8_t addr_abs(nes_cpu_t *cpu) {
@@ -58,15 +68,15 @@ static u_int8_t addr_abs(nes_cpu_t *cpu) {
     addrh = read_opcode_byte(cpu);
     addr = (addrh << 8) | addrl;
 
-    return cpu->memory[addr];
+    return *get_memory(cpu, addr);
 }
 
 static u_int8_t *addr_zp_write(nes_cpu_t *cpu) {
-    return &(cpu->memory[read_opcode_byte(cpu)]);
+    return get_memory(cpu, read_opcode_byte(cpu));
 }
 
 static u_int8_t *addr_zpx_write(nes_cpu_t *cpu) {
-    return &(cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.X) % 0xff]);
+    return get_memory(cpu, (read_opcode_byte(cpu) + cpu->mregister.X) % 0xff);
 }
 
 static u_int8_t *addr_abs_write(nes_cpu_t *cpu) {
@@ -75,7 +85,7 @@ static u_int8_t *addr_abs_write(nes_cpu_t *cpu) {
     addrh = read_opcode_byte(cpu);
     addr = (addrh << 8) | addrl;
 
-    return &(cpu->memory[addr]);
+    return get_memory(cpu, addr);
 }
 
 static u_int8_t *addr_absx_write(nes_cpu_t *cpu) {
@@ -85,7 +95,7 @@ static u_int8_t *addr_absx_write(nes_cpu_t *cpu) {
     addr = (addrh << 8) | addrl;
 
     addr += cpu->mregister.X;
-    return &(cpu->memory[addr]);
+    return get_memory(cpu, addr);
 }
 
 static u_int8_t *addr_absy_write(nes_cpu_t *cpu) {
@@ -95,23 +105,21 @@ static u_int8_t *addr_absy_write(nes_cpu_t *cpu) {
     addr = (addrh << 8) | addrl;
 
     addr += cpu->mregister.Y;
-    return &(cpu->memory[addr]);
+    return get_memory(cpu, addr);
 }
 
 static u_int8_t *addr_indexindiret_write(nes_cpu_t *cpu) {
-    u_int8_t *memory = cpu->memory;
     u_int8_t X = cpu->mregister.X;
     u_int8_t data = read_opcode_byte(cpu);
-    u_int16_t addr = ((u_int16_t)memory[(data + X) & 0xff]) + ((u_int16_t)memory[(data + X + 1) & 0xff]) << 8;
-    return &(memory[addr]);
+    u_int16_t addr = ((u_int16_t)*get_memory(cpu, (data + X) & 0xff)) + ((u_int16_t)*get_memory(cpu, (data + X + 1) & 0xff)) << 8;
+    return get_memory(cpu, addr);
 }
 
 static u_int8_t *addr_indiretindex_write(nes_cpu_t *cpu) {
-    u_int8_t *memory = cpu->memory;
     u_int8_t Y = cpu->mregister.Y;
     u_int8_t data = read_opcode_byte(cpu);
-    u_int16_t addr = (u_int16_t)(memory[data]) + (u_int16_t)(memory[(data + 1) & 0xff]) << 8 + Y;
-    return &(memory[addr]);
+    u_int16_t addr = (u_int16_t)(*get_memory(cpu, data)) + (u_int16_t)(*get_memory(cpu, (data + 1) & 0xff)) << 8 + Y;
+    return get_memory(cpu, addr);
 }
 
 static u_int8_t get_oper(nes_cpu_t *cpu, u_int8_t opcode) {
@@ -308,7 +316,7 @@ static void cpu_shift_ror(nes_cpu_t *cpu, u_int8_t opcode) {
 }
 
 static u_int8_t addr_zpy(nes_cpu_t *cpu) {
-    return cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff];
+    return *get_memory(cpu, (read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff);
 }
 
 static u_int8_t get_oper_ldx(nes_cpu_t *cpu, u_int8_t opcode) {
@@ -357,7 +365,7 @@ static void cpu_type10_tsx(nes_cpu_t *cpu, u_int8_t opcode) {
 }
 
 static u_int8_t *addr_zpy_write(nes_cpu_t *cpu) {
-    return &(cpu->memory[(read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff]);
+    return get_memory(cpu, (read_opcode_byte(cpu) + cpu->mregister.Y) % 0xff);
 }
 
 
@@ -409,12 +417,12 @@ static void cpu_type00_php(nes_cpu_t *cpu, u_int8_t opcode) {
     data |= (cpu->flags.B) << 4;
     data |= (cpu->flags.V) << 6;
     data |= (cpu->flags.N) << 7;
-    cpu->memory[cpu->mregister.SP + 0x0100] = data;
-    cpu->mregister.SP--;
+    stack_push(cpu, data);
 }
 
 //N = 0分支
 static void cpu_type00_bpl(nes_cpu_t *cpu, u_int8_t opcode) {
+    if(cpu->flags.N) return; 
     int8_t data = (int8_t)read_opcode_byte(cpu);
     cpu->mregister.PC -= 2;
     cpu->mregister.PC += data;
@@ -434,3 +442,159 @@ static void cpu_type00_000(nes_cpu_t *cpu, u_int8_t opcode) {
     (*cpu_type00_000_funs[(opcode >> 2) & 0x07])(cpu, opcode);
 }
 
+//BIT 位测试
+static void cpu_type00_bit(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t data;
+    if((opcode >> 2) & 0x07 == 0x01) {
+        data = addr_zp(cpu);
+    } else if((opcode >> 2) & 0x07 == 0x03) {
+        data = addr_abs(cpu);
+    }
+    setN(cpu, data);
+    cpu->flags.V = (data >> 6) & 0x01;
+    setZ(cpu, data & (cpu->mregister.A));
+}
+
+// 类似CALL
+static void cpu_type00_jsr(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int16_t temp_PC;
+    stack_push(cpu, (cpu->mregister.PC + 1) & 0xff);
+    stack_push(cpu, ((cpu->mregister.PC + 1) >> 8) & 0xff);
+    temp_PC = read_opcode_byte(cpu);
+    temp_PC |= ((u_int16_t)read_opcode_byte(cpu)) << 8;
+    cpu->mregister.PC = temp_PC;
+}
+
+//从栈中弹回状态寄存器P
+static void cpu_type00_plp(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t data = 0;
+    stack_pop(cpu, &data);
+    cpu->flags.C = data & 0x01;
+    cpu->flags.Z = (data >> 1) & 0x01;
+    cpu->flags.I = (data >> 2) & 0x01;
+    cpu->flags.D = (data >> 3) & 0x01;
+    cpu->flags.B = (data >> 4) & 0x01;
+    cpu->flags.V = (data >> 6) & 0x01;
+    cpu->flags.N = (data >> 7) & 0x01;
+}
+
+//N=1 分支
+static void cpu_type00_bmi(nes_cpu_t *cpu, u_int8_t opcode) {
+    if(!cpu->flags.N) return; 
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//C = 1
+static void cpu_type00_sec(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.C = 1;
+}
+
+//001
+static void cpu_type00_001(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_001_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_jsr, cpu_type00_bit, cpu_type00_plp, cpu_type00_bit, 
+        cpu_type00_bmi, NULL, cpu_type00_sec, NULL
+    };
+    (*cpu_type00_001_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//V=0的分支
+static void cpu_type00_bvc(nes_cpu_t *cpu, u_int8_t opcode) {
+    if(cpu->flags.V) return; 
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//跳转(goto)
+static void cpu_type00_jmp(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int16_t jmp_pc = 0, temp_data = 0;
+    if(opcode == 0x4c) {
+        jmp_pc = read_opcode_byte(cpu);
+        jmp_pc |= ((u_int16_t)read_opcode_byte(cpu)) << 8;
+    } else if(opcode == 0x6c) {
+        temp_data = read_opcode_byte(cpu);
+        temp_data |= ((u_int16_t)read_opcode_byte(cpu)) << 8;
+        jmp_pc = *get_memory(cpu, temp_data);
+        jmp_pc = ((u_int16_t)(*get_memory(cpu, temp_data + 1))) << 8;
+    }
+    cpu->mregister.PC = jmp_pc;
+}
+
+//中断返回
+static void cpu_type00_rti(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t data = 0;
+    stack_pop(cpu, &data);
+    cpu->flags.C = data & 0x01;
+    cpu->flags.Z = (data >> 1) & 0x01;
+    cpu->flags.I = (data >> 2) & 0x01;
+    cpu->flags.D = (data >> 3) & 0x01;
+    cpu->flags.B = (data >> 4) & 0x01;
+    cpu->flags.V = (data >> 6) & 0x01;
+    cpu->flags.N = (data >> 7) & 0x01;
+
+    u_int16_t temp_PC;
+    stack_pop(cpu, &data);
+    temp_PC = ((u_int16_t)data) << 8;
+    stack_pop(cpu, &data);
+    temp_PC |= ((u_int16_t)data);
+}
+
+//I = 0
+static void cpu_type00_cli(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.I = 0;
+}
+
+//累加器入栈
+static void cpu_type00_pha(nes_cpu_t *cpu, u_int16_t opcode) {
+    stack_push(cpu, cpu->mregister.A);
+}
+
+//010
+static void cpu_type00_010(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_010_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_rti, NULL, cpu_type00_pha, cpu_type00_jmp, 
+        cpu_type00_bvc, NULL, cpu_type00_cli, NULL
+    };
+    (*cpu_type00_010_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
+
+//V = 1 分支
+static void cpu_type00_bvs(nes_cpu_t *cpu, u_int8_t opcode) {
+    if(!(cpu->flags.V)) return; 
+    int8_t data = (int8_t)read_opcode_byte(cpu);
+    cpu->mregister.PC -= 2;
+    cpu->mregister.PC += data;
+}
+
+//子程序返回
+static void cpu_type00_rts(nes_cpu_t *cpu, u_int8_t opcode) {
+    u_int8_t data = 0;
+
+    u_int16_t temp_PC;
+    stack_pop(cpu, &data);
+    temp_PC = ((u_int16_t)data) << 8;
+    stack_pop(cpu, &data);
+    temp_PC |= ((u_int16_t)data);
+}
+
+//I = 1
+static void cpu_type00_sei(nes_cpu_t *cpu, u_int8_t opcode) {
+    cpu->flags.I = 1;
+}
+
+//累加器出栈
+static void cpu_type00_pla(nes_cpu_t *cpu, u_int8_t opcode) {
+    stack_pop(cpu, &(cpu->mregister.A));
+}
+
+//011
+static void cpu_type00_011(nes_cpu_t *cpu, u_int8_t opcode) {
+    void (*cpu_type00_011_funs[])(nes_cpu_t *cpu, u_int8_t opcode) = {
+        cpu_type00_rti, NULL, cpu_type00_pha, cpu_type00_jmp, 
+        cpu_type00_bvc, NULL, cpu_type00_cli, NULL
+    };
+    (*cpu_type00_011_funs[(opcode >> 2) & 0x07])(cpu, opcode);
+}
